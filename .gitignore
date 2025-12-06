@@ -19,6 +19,11 @@ pyvenv.cfg
 .vscode/
 .DS_Store
 
+# PyInstaller / build artifacts
+dist/
+build/
+*.spec
+
 # Generated artifacts
 html/
 *.html

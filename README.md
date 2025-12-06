@@ -54,3 +54,12 @@ Run the test suite (after activating the venv):
 ```bash
 pytest
 ```
+
+## One-file GUI launcher (optional)
+- A simple Tkinter launcher (`launcher.py`) lets non-technical users pick a statements ZIP and an output folder; it then runs `main.py` and `analyse.py` for them.
+- To build a single-file app on macOS with PyInstaller:
+  ```bash
+  pip install pyinstaller
+  pyinstaller --onefile --add-data "resources:resources" launcher.py
+  ```
+  The packaged binary will be in `dist/launcher`. Build on each target OS you need (Mac builds for Mac, Windows builds for Windows).

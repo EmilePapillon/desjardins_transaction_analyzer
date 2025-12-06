@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import os
 from datetime import datetime
+from typing import Dict, List
 
 import click
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 
 def ensure_output_dir(path: str):
@@ -88,30 +90,140 @@ def reconcile_reimbursements(df: pd.DataFrame, tolerance: float = 0.01):
     return df.drop(index=list(to_drop)).copy(), len(to_drop)
 
 
+def format_rows_for_detail(rows: pd.DataFrame) -> List[Dict]:
+    """Convert a set of rows into serializable dicts for customdata."""
+    subset = rows[["transaction_date", "description", "amount"]].copy()
+    subset["transaction_date"] = subset["transaction_date"].astype(str)
+    subset["description"] = subset["description"].astype(str)
+    return subset.to_dict(orient="records")
+
+
+def wrap_html_with_detail(fig_html: str, title: str, chart_id: str, detail_id: str) -> str:
+    """Embed a detail container and click handler alongside the Plotly chart HTML."""
+    style = """
+    <style>
+    body { font-family: Arial, sans-serif; margin: 0 auto; padding: 16px; max-width: 1100px; }
+    .detail-box { margin-top: 12px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
+    .detail-box table { border-collapse: collapse; width: 100%; }
+    .detail-box th, .detail-box td { text-align: left; padding: 6px; border-bottom: 1px solid #eee; }
+    .detail-box th { cursor: pointer; user-select: none; }
+    .detail-box tr:hover { background: #f2f2f2; }
+    </style>
+    """
+    script = f"""
+    <script>
+    (function() {{
+      const chart = document.getElementById('{chart_id}');
+      const detail = document.getElementById('{detail_id}');
+      if (!chart || !detail) return;
+      const state = {{ rows: [], baseRows: [], sortKey: null, sortDir: 'none' }};
+      const comparator = (a, b, key) => {{
+        const va = a[key];
+        const vb = b[key];
+        if (key === 'amount') {{
+          return (parseFloat(va) || 0) - (parseFloat(vb) || 0);
+        }}
+        return String(va || '').localeCompare(String(vb || ''), undefined, {{ numeric: true }});
+      }};
+      const cycleDir = (current) => current === 'none' ? 'asc' : current === 'asc' ? 'desc' : 'none';
+      const applySort = () => {{
+        if (state.sortDir === 'none' || !state.sortKey) return state.baseRows.slice();
+        const sorted = state.baseRows.slice().sort((a,b) => comparator(a,b,state.sortKey));
+        if (state.sortDir === 'desc') sorted.reverse();
+        return sorted;
+      }};
+      const dirSymbol = (key) => {{
+        if (state.sortKey !== key) return '';
+        return state.sortDir === 'asc' ? ' ↑' : state.sortDir === 'desc' ? ' ↓' : '';
+      }};
+      const renderTable = () => {{
+        if (!state.baseRows.length) {{
+          detail.innerHTML = '<strong>No transactions for this selection.</strong>';
+          return;
+        }}
+        const header = `<tr>
+          <th data-sort="transaction_date">Date${{dirSymbol('transaction_date')}}</th>
+          <th data-sort="description">Description${{dirSymbol('description')}}</th>
+          <th data-sort="amount">Amount${{dirSymbol('amount')}}</th>
+        </tr>`;
+        const rows = applySort();
+        const body = rows.map(r => {{
+          const amt = typeof r.amount === 'number' ? r.amount.toFixed(2) : r.amount;
+          return `<tr><td>${{r.transaction_date || ''}}</td><td>${{r.description || ''}}</td><td>${{amt}}</td></tr>`;
+        }}).join('');
+        const sortLabel = state.sortDir === 'none' ? '' : ' (sorted ' + state.sortDir + ' by ' + state.sortKey + ')';
+        detail.innerHTML = `<h3>{title} — Transactions</h3><table>` + header + body + '</table><div>' + rows.length + ' transaction(s)' + sortLabel + '</div>';
+      }};
+      chart.on('plotly_click', function(ev) {{
+        if (!ev.points || !ev.points.length) return;
+        const rows = ev.points[0].customdata || [];
+        state.baseRows = rows.slice();
+        state.sortKey = null;
+        state.sortDir = 'none';
+        renderTable();
+      }});
+      detail.addEventListener('click', (ev) => {{
+        const th = ev.target.closest('th[data-sort]');
+        if (!th) return;
+        const key = th.getAttribute('data-sort');
+        state.sortDir = cycleDir(state.sortDir);
+        state.sortKey = state.sortDir === 'none' ? null : key;
+        renderTable();
+      }});
+    }})();
+    </script>
+    """
+    return f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{title}</title>{style}</head><body>{fig_html}<div id='{detail_id}' class='detail-box'>Click a bar/point to see transactions.</div>{script}</body></html>"
+
+
 def plot_monthly_spending(df: pd.DataFrame, out_dir: str):
-    monthly = df.groupby("year_month")["amount"].sum().reset_index()
+    monthly = (
+        df.groupby("year_month")["amount"]
+        .agg(total="sum", count="size")
+        .reset_index()
+        .sort_values("year_month")
+    )
+
+    custom = [
+        format_rows_for_detail(df[df["year_month"] == ym])
+        for ym in monthly["year_month"]
+    ]
 
     fig = px.bar(
         monthly,
         x="year_month",
-        y="amount",
-        labels={"year_month": "Month", "amount": "Total spending (CAD)"},
+        y="total",
+        labels={"year_month": "Month", "total": "Total spending (CAD)"},
         title="Monthly Spending",
+        hover_data={"count": True},
     )
     fig.update_layout(xaxis_tickangle=-45)
+    fig.update_traces(customdata=custom)
+
+    fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", div_id="chart-monthly")
+    html = wrap_html_with_detail(fig_html, "Monthly Spending", "chart-monthly", "detail-monthly")
 
     out_path = os.path.join(out_dir, "monthly_spending.html")
-    fig.write_html(out_path)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
 
 def plot_daily_spending(df: pd.DataFrame, out_dir: str, window: int = 7):
-    daily = df.groupby(df["transaction_date"].dt.date)["amount"].sum().reset_index()
-    daily.rename(columns={"transaction_date": "date"}, inplace=True)
-    daily = daily.sort_values("date")
-    # Rolling mean for smoothing
+    daily = (
+        df.groupby(df["transaction_date"].dt.date)["amount"]
+        .sum()
+        .reset_index()
+        .rename(columns={"transaction_date": "date"})
+        .sort_values("date")
+    )
     daily["rolling_mean"] = (
         daily["amount"].rolling(window=window, min_periods=1, center=False).mean()
     )
+
+    custom = [
+        format_rows_for_detail(df[df["transaction_date"].dt.date == d])
+        for d in daily["date"]
+    ]
 
     fig = px.line(
         daily,
@@ -121,22 +233,57 @@ def plot_daily_spending(df: pd.DataFrame, out_dir: str, window: int = 7):
         title=f"Daily Spending (with {window}-day rolling average)",
     )
     fig.update_layout(legend_title_text="Series")
+    if fig.data:
+        fig.data[0].customdata = custom  # amount series
+        fig.data[0].hovertemplate = "Date: %{x}<br>Amount: %{y:.2f}<extra></extra>"
+    if len(fig.data) > 1:
+        fig.data[1].hovertemplate = "Date: %{x}<br>Rolling mean: %{y:.2f}<extra></extra>"
+
+    fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", div_id="chart-daily")
+    html = wrap_html_with_detail(fig_html, "Daily Spending", "chart-daily", "detail-daily")
 
     out_path = os.path.join(out_dir, "daily_spending.html")
-    fig.write_html(out_path)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
 
 def plot_amount_histogram(df: pd.DataFrame, out_dir: str):
-    fig = px.histogram(
-        df[df["amount"] > 0],
-        x="amount",
-        nbins=40,
-        labels={"amount": "Transaction amount (CAD)"},
-        title="Distribution of Transaction Amounts",
-    )
+    positive = df[df["amount"] > 0].copy()
+    if positive.empty:
+        fig = go.Figure()
+        fig.update_layout(title="Distribution of Transaction Amounts")
+        custom = []
+        bin_df = pd.DataFrame({"bin_label": [], "count": []})
+    else:
+        positive["bin"] = pd.cut(positive["amount"], bins=40, include_lowest=True)
+        bin_df = (
+            positive.groupby("bin")["amount"]
+            .agg(count="size")
+            .reset_index()
+            .sort_values("bin")
+        )
+        bin_df["bin_label"] = bin_df["bin"].astype(str)
+        custom = [
+            format_rows_for_detail(positive[positive["bin"] == interval])
+            for interval in bin_df["bin"]
+        ]
+
+        fig = px.bar(
+            bin_df,
+            x="bin_label",
+            y="count",
+            labels={"bin_label": "Amount range (CAD)", "count": "Transaction count"},
+            title="Distribution of Transaction Amounts",
+        )
+        fig.update_layout(xaxis_tickangle=-45)
+        fig.update_traces(customdata=custom, hovertemplate="Range: %{x}<br>Count: %{y}<extra></extra>")
+
+    fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", div_id="chart-hist")
+    html = wrap_html_with_detail(fig_html, "Amount Distribution", "chart-hist", "detail-hist")
 
     out_path = os.path.join(out_dir, "amount_histogram.html")
-    fig.write_html(out_path)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
 
 def plot_top_merchants(df: pd.DataFrame, out_dir: str, top_n: int = 15):
@@ -148,6 +295,10 @@ def plot_top_merchants(df: pd.DataFrame, out_dir: str, top_n: int = 15):
         .reset_index()
     )
 
+    custom = [
+        format_rows_for_detail(df[df["merchant"] == m]) for m in by_merchant["merchant"]
+    ]
+
     fig = px.bar(
         by_merchant,
         x="amount",
@@ -157,9 +308,14 @@ def plot_top_merchants(df: pd.DataFrame, out_dir: str, top_n: int = 15):
         title=f"Top {top_n} Merchants by Spend",
     )
     fig.update_layout(yaxis={"categoryorder": "total ascending"})
+    fig.update_traces(customdata=custom, hovertemplate="Merchant: %{y}<br>Spend: %{x:.2f}<extra></extra>")
+
+    fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", div_id="chart-merchants")
+    html = wrap_html_with_detail(fig_html, "Top Merchants", "chart-merchants", "detail-merchants")
 
     out_path = os.path.join(out_dir, "top_merchants.html")
-    fig.write_html(out_path)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
 
 @click.command()

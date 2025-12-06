@@ -26,6 +26,7 @@ def test_parse_page_transactions_basic_and_percent_stripping():
     assert rows[0]["transaction_date_raw"] == "01 06"
     assert rows[0]["posted_date_raw"] == "02 06"
     assert rows[0]["amount_raw"] == "90,45"
+    assert rows[0]["description_raw"].startswith("ZEHRS #529")
     assert rows[0]["description"] == "ZEHRS #529 PARKWAY WINDSOR ON"
 
 
@@ -35,6 +36,13 @@ def test_parse_page_transactions_credit_and_spacing():
     assert len(rows) == 1
     assert rows[0]["amount_raw"] == "12,34CR"
     assert rows[0]["description"] == "REFUND ABC STORE"
+
+
+def test_parse_page_transactions_parentheses_negative():
+    sample = "10 06 11 06 SAMPLE STORE 1,00 % (45,67)"
+    rows = parse_page_transactions(FakePage(sample))
+    assert len(rows) == 1
+    assert rows[0]["amount_raw"] == "(45,67)"
 
 
 def test_parse_dd_mm_validation():

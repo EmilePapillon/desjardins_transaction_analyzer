@@ -43,6 +43,51 @@ def load_data(csv_path: str) -> pd.DataFrame:
     return df
 
 
+def drop_payments(df: pd.DataFrame):
+    """Remove payment rows from the dataset."""
+    if "is_payment" not in df.columns:
+        return df, 0
+    is_payment = df["is_payment"].fillna(False)
+    removed = int(is_payment.sum())
+    return df[~is_payment].copy(), removed
+
+
+def reconcile_reimbursements(df: pd.DataFrame, tolerance: float = 0.01):
+    """
+    Match negative amounts (credits/refunds) to positive amounts with the same
+    description and nearly equal magnitude. Drops both the credit and the matched
+    debit, leaving only unreimbursed expenses. Unmatched credits are removed
+    from the expense view (they reduce spend elsewhere).
+    """
+    df = df.copy()
+    to_drop = set()
+    credits = df[df["amount"] < 0]
+    debits = df[df["amount"] > 0]
+
+    # Group debits by description for quick lookup
+    debit_groups = {}
+    for idx, row in debits.iterrows():
+        debit_groups.setdefault(row["description"], []).append((idx, row["amount"]))
+
+    for idx_credit, credit in credits.iterrows():
+        candidates = debit_groups.get(credit["description"], [])
+        match_idx = None
+        for idx_debit, amount in candidates:
+            if idx_debit in to_drop:
+                continue
+            if abs(amount + credit["amount"]) <= tolerance:
+                match_idx = idx_debit
+                break
+        if match_idx is not None:
+            to_drop.add(idx_credit)
+            to_drop.add(match_idx)
+        else:
+            # Unmatched credit: drop from expense analysis
+            to_drop.add(idx_credit)
+
+    return df.drop(index=list(to_drop)).copy(), len(to_drop)
+
+
 def plot_monthly_spending(df: pd.DataFrame, out_dir: str):
     monthly = df.groupby("year_month")["amount"].sum().reset_index()
 
@@ -146,23 +191,30 @@ def main(input_csv, output_dir, rolling_window):
     """
     ensure_output_dir(output_dir)
     print(f"Loading data from: {input_csv}")
-    df = load_data(input_csv)
+    df_raw = load_data(input_csv)
+
+    df_no_payments, removed_payments = drop_payments(df_raw)
+    df_expenses, removed_reimbursed = reconcile_reimbursements(df_no_payments)
+
+    print(
+        f"Cleaning: dropped {removed_payments} payments and {removed_reimbursed} "
+        f"reimbursed/refunded rows. Remaining expenses: {len(df_expenses)}"
+    )
 
     print("Generating monthly spending chart...")
-    plot_monthly_spending(df, output_dir)
+    plot_monthly_spending(df_expenses, output_dir)
 
     print("Generating daily spending chart...")
-    plot_daily_spending(df, output_dir, window=rolling_window)
+    plot_daily_spending(df_expenses, output_dir, window=rolling_window)
 
     print("Generating transaction amount histogram...")
-    plot_amount_histogram(df, output_dir)
+    plot_amount_histogram(df_expenses, output_dir)
 
     print("Generating top merchants chart...")
-    plot_top_merchants(df, output_dir)
+    plot_top_merchants(df_expenses, output_dir)
 
     print(f"Done. Open the HTML files in {output_dir} in your browser.")
 
 
 if __name__ == "__main__":
     main()
-

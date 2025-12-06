@@ -1,0 +1,6 @@
+click
+pdfplumber
+pandas
+
+plotly
+pytest

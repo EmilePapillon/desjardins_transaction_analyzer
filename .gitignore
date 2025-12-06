@@ -1,0 +1,32 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments (present locally)
+.venv/
+venv/
+env/
+bin/
+lib/
+lib64/
+include/
+share/
+pyvenv.cfg
+
+# Editor cruft
+.idea/
+.vscode/
+.DS_Store
+
+# Generated artifacts
+html/
+*.html
+*.csv
+
+# Large inputs
+releves/*.pdf
+
+# Editor swap files
+*.swp
+*.swo

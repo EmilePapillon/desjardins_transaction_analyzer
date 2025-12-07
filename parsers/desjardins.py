@@ -1,7 +1,6 @@
 import os
 import re
 from datetime import datetime
-from fnmatch import fnmatch
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -14,6 +13,33 @@ AMOUNT_TRAIL_RE = re.compile(
     r"(?P<amount>(?:-?\d[\d\s]*,\d{2}(?:CR)?|-?\d[\d\s]*CR|\(\d[\d\s]*,\d{2}\)))\s*$"
 )
 PERCENT_TRAIL_RE = re.compile(r"\s*\d+,\d{2}\s*%$")
+
+
+def parse_amount(raw: str) -> Optional[float]:
+    """Normalize an amount string that may have CR/parentheses/whitespace."""
+    is_credit = raw.endswith("CR")
+    amt_stripped = raw[:-2] if is_credit else raw
+
+    negative = False
+    if amt_stripped.startswith("-"):
+        negative = True
+        amt_stripped = amt_stripped[1:]
+    if amt_stripped.startswith("(") and amt_stripped.endswith(")"):
+        negative = True
+        amt_stripped = amt_stripped.strip("()")
+
+    amt_clean = amt_stripped.replace(" ", "").replace("\xa0", "")
+    if amt_clean.count(",") == 1 and amt_clean.count(".") == 0:
+        amt_clean = amt_clean.replace(",", ".")
+
+    try:
+        amount = float(amt_clean)
+    except ValueError:
+        return None
+
+    if is_credit or negative:
+        amount = -amount
+    return amount
 
 
 class DesjardinsParser(BankStatementParser):
@@ -40,7 +66,6 @@ class DesjardinsParser(BankStatementParser):
 
     def parse_file(self, path: str, sniff: Optional[FileSniff] = None) -> pd.DataFrame:
         filename = os.path.basename(path)
-        year = determine_statement_year(path, filename, sniff=sniff)
 
         all_tx = []
         parsed = 0
@@ -48,6 +73,9 @@ class DesjardinsParser(BankStatementParser):
 
         try:
             with pdfplumber.open(path) as pdf:
+                first_page = pdf.pages[0] if pdf.pages else None
+                year = determine_statement_year(filename, sniff_text=sniff.first_page_text if sniff else None, first_page=first_page)
+
                 for page in pdf.pages:
                     rows = parse_page_transactions(page)
 
@@ -64,30 +92,10 @@ class DesjardinsParser(BankStatementParser):
                             skipped += 1
                             continue
 
-                        amt_raw = r["amount_raw"]
-                        is_credit = False
-                        amt_stripped = amt_raw
-                        if amt_raw.endswith("CR"):
-                            is_credit = True
-                            amt_stripped = amt_raw[:-2]
-                        negative = False
-                        if amt_stripped.startswith("-"):
-                            negative = True
-                            amt_stripped = amt_stripped[1:]
-                        if amt_stripped.startswith("(") and amt_stripped.endswith(")"):
-                            negative = True
-                            amt_stripped = amt_stripped.strip("()")
-
-                        amt_clean = amt_stripped.replace(" ", "").replace("\xa0", "")
-                        if amt_clean.count(",") == 1 and amt_clean.count(".") == 0:
-                            amt_clean = amt_clean.replace(",", ".")
-                        try:
-                            amount = float(amt_clean)
-                        except ValueError:
+                        amount = parse_amount(r["amount_raw"])
+                        if amount is None:
                             skipped += 1
                             continue
-                        if is_credit or negative:
-                            amount = -amount
 
                         description = r.get("description", "")
                         description_raw = r.get("description_raw", "")
@@ -173,29 +181,16 @@ def parse_dd_mm(date_str: str, year: int):
         return None
 
 
-def determine_statement_year(pdf_path: str, filename: str, sniff: Optional[FileSniff] = None) -> int:
-    if sniff and sniff.first_page_text:
-        m = re.search(r"Ann[ée]e\s+(\d{4})", sniff.first_page_text, re.IGNORECASE)
+def determine_statement_year(filename: str, sniff_text: Optional[str], first_page) -> int:
+    """Determine the statement year without re-opening the PDF."""
+    if sniff_text:
+        m = re.search(r"Ann[ée]e\s+(\d{4})", sniff_text, re.IGNORECASE)
         if m:
             return int(m.group(1))
 
-    try:
-        with pdfplumber.open(pdf_path) as pdf:
-            if pdf.pages:
-                year = parse_statement_date_from_page(pdf.pages[0])
-                if year:
-                    return year
-    except Exception:
-        pass
+    if first_page is not None:
+        year = parse_statement_date_from_page(first_page)
+        if year:
+            return year
+
     return infer_year_from_filename(filename)
-
-
-def collect_files(input_dir: str, patterns: Optional[List[str]] = None) -> List[str]:
-    files = []
-    for filename in sorted(os.listdir(input_dir)):
-        if patterns and not any(fnmatch(filename, pat) for pat in patterns):
-            continue
-        path = os.path.join(input_dir, filename)
-        if os.path.isfile(path):
-            files.append(path)
-    return files

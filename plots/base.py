@@ -1,10 +1,10 @@
 import os
 from abc import ABC, abstractmethod
-from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
 
+from .theme import DETAIL_PAGE_STYLES
 
 def format_rows_for_detail(rows: pd.DataFrame) -> List[Dict]:
     """Convert rows into serializable dicts for Plotly customdata."""
@@ -14,18 +14,14 @@ def format_rows_for_detail(rows: pd.DataFrame) -> List[Dict]:
     return subset.to_dict(orient="records")
 
 
+def build_customdata(df: pd.DataFrame, keys, selector) -> List[List[Dict]]:
+    """Map a series of grouping keys to the corresponding customdata payload."""
+    return [format_rows_for_detail(selector(df, key)) for key in keys]
+
+
 def wrap_html_with_detail(fig_html: str, title: str, chart_id: str, detail_id: str, back_link: Optional[str] = "index.html") -> str:
     """Embed a detail container and click handler alongside Plotly chart HTML."""
-    style = """
-    <style>
-    body { font-family: Arial, sans-serif; margin: 0 auto; padding: 16px; max-width: 1100px; }
-    .detail-box { margin-top: 12px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
-    .detail-box table { border-collapse: collapse; width: 100%; }
-    .detail-box th, .detail-box td { text-align: left; padding: 6px; border-bottom: 1px solid #eee; }
-    .detail-box th { cursor: pointer; user-select: none; }
-    .detail-box tr:hover { background: #f2f2f2; }
-    </style>
-    """
+    style = f"<style>{DETAIL_PAGE_STYLES}</style>"
     script = f"""
     <script>
     (function() {{
@@ -103,6 +99,14 @@ class PlotPage(ABC):
     @property
     def filename(self) -> str:
         return f"{self.slug}.html"
+
+    def save_page(self, fig_html: str, out_dir: str) -> str:
+        """Wrap the chart HTML with detail UI and write to disk."""
+        html = wrap_html_with_detail(fig_html, self.title, f"chart-{self.slug}", f"detail-{self.slug}")
+        out_path = os.path.join(out_dir, self.filename)
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        return out_path
 
     @abstractmethod
     def generate(self, df: pd.DataFrame, out_dir: str) -> str:

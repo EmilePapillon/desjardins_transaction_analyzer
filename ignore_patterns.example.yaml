@@ -1,0 +1,8 @@
+ignore_descriptions:
+  # Glob patterns (case-insensitive)
+  - "SENDE-TFR***"      # generic e-transfer prefix
+  - "SEND E-TFR*"       # alternative spacing/version
+
+ignore_descriptions_regex:
+  # Optional regex patterns (case-insensitive); uncomment if needed
+  # - "^SENDE-TFR\\*\\*\\*.*$"

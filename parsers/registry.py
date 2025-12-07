@@ -2,10 +2,11 @@ from typing import Dict, List
 
 from .base import BankStatementParser
 from .desjardins import DesjardinsParser
+from .td import TDParser
 
 
 def get_parsers() -> List[BankStatementParser]:
-    return [DesjardinsParser()]
+    return [DesjardinsParser(), TDParser()]
 
 
 def get_parser_by_name(name: str) -> BankStatementParser:

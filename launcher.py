@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Minimal GUI wrapper for the extractor + analyzer.
+Minimal GUI wrapper for the analyzer.
 Steps:
 1) User picks a ZIP of statements.
 2) User picks an output directory for the charts/CSV.
-3) We unzip to a temp dir, run main.py, then analyse.py.
+3) We unzip to a temp dir, then run analyse.py once (which parses + plots).
 """
 import os
 import subprocess
@@ -100,21 +100,22 @@ def on_run(status_label, root):
                 zf.extractall(temp_dir)
 
             repo_root = Path(__file__).resolve().parent
-            main_py = repo_root / "main.py"
             analyse_py = repo_root / "analyse.py"
             csv_path = Path(out_dir) / "transactions.csv"
 
-            status_label.config(text="Extracting transactions...")
+            status_label.config(text="Parsing and generating charts...")
             root.update()
             run_cmd(
-                [sys.executable, str(main_py), "-i", temp_dir, "-o", str(csv_path)],
-                cwd=str(repo_root),
-            )
-
-            status_label.config(text="Generating charts...")
-            root.update()
-            run_cmd(
-                [sys.executable, str(analyse_py), "-i", str(csv_path), "-o", str(out_dir)],
+                [
+                    sys.executable,
+                    str(analyse_py),
+                    "-i",
+                    temp_dir,
+                    "-o",
+                    str(out_dir),
+                    "--csv-output",
+                    str(csv_path),
+                ],
                 cwd=str(repo_root),
             )
 
@@ -132,7 +133,7 @@ def on_run(status_label, root):
                 pass
 
         status_label.config(text="Done.")
-        messagebox.showinfo("Finished", f"Analysis complete.\nOutputs in:\n{out_dir}")
+        # messagebox.showinfo("Finished", f"Analysis complete.\nOutputs in:\n{out_dir}")
         # Try to open the output directory
         try:
             if sys.platform == "darwin":

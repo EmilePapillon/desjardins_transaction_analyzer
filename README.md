@@ -25,24 +25,31 @@ This repo extracts transactions from Desjardins credit-card PDF statements and b
    pip install pytest
    ```
 
-## Extract transactions to CSV
+## Run analysis and (optionally) export CSV
 Place your PDFs in `releves/`, then run:
 ```bash
-./main.py -i releves -o transactions.csv
+# Generate charts (and optionally a CSV) directly from statements
+./analyse.py -i releves -o html --csv-output transactions.csv
 # optional:
-#   -v          verbose parse stats
-#   -g 'pattern.pdf'  only files matching glob (e.g., -g '*-2025.pdf')
+#   -v                 verbose parse stats
+#   -g 'pattern.pdf'   only files matching glob (e.g., -g '*-2025.pdf')
+#   --bank desjardins  force a specific parser
+#   -w 7               rolling window for daily chart
 ```
-
-## Generate interactive graphs
-```bash
-./analyse.py -i transactions.csv -o html
-```
-Open the HTML files in `html/`:
+Open the HTML files in `html/` (or `html/index.html` to browse them):
 - `monthly_spending.html`
 - `daily_spending.html`
 - `amount_histogram.html`
 - `top_merchants.html`
+
+If you only want a CSV extract (no charts), you can still run:
+```bash
+./main.py -i releves -o transactions.csv
+# optional:
+#   -v                 verbose parse stats
+#   -g 'pattern.pdf'   only files matching glob
+#   --bank desjardins  force a specific parser
+```
 
 Interactions:
 - Click bars/points to see the contributing transactions.

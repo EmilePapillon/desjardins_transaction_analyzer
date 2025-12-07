@@ -28,6 +28,9 @@ build/
 html/
 *.html
 *.csv
+.extracts_ignore.yaml
+.extracts_ignore.yml
+.extracts_ignore.json
 
 # Large inputs
 releves/*.pdf

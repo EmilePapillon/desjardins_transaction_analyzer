@@ -8,6 +8,7 @@ import pandas as pd
 from parsers import parse_statements, write_csv
 from plots import get_plot_pages
 from plots.theme import INDEX_PAGE_STYLES
+from user_settings import collect_ignore_patterns, filter_transactions_by_description
 
 
 def ensure_output_dir(path: str):
@@ -160,7 +161,20 @@ def write_index_html(out_dir: str, pages: List):
     is_flag=True,
     help="Print per-file parsing info.",
 )
-def main(input_dir, output_dir, patterns, bank, csv_output, rolling_window, verbose):
+@click.option(
+    "--ignore-pattern",
+    "-x",
+    "ignore_patterns",
+    multiple=True,
+    help="Glob pattern(s) of descriptions to drop (applied after parsing).",
+)
+@click.option(
+    "--ignore-config",
+    default=None,
+    type=click.Path(dir_okay=False, exists=False),
+    help="Optional JSON config file with ignore settings (defaults to ~/.extracts_ignore.json).",
+)
+def main(input_dir, output_dir, patterns, bank, csv_output, rolling_window, verbose, ignore_patterns, ignore_config):
     """
     Parse statements with available bank parsers and generate interactive charts.
     """
@@ -177,6 +191,11 @@ def main(input_dir, output_dir, patterns, bank, csv_output, rolling_window, verb
     if df_raw.empty:
         print("No transactions found. Check the input files or parser selection.")
         return
+
+    patterns_all = collect_ignore_patterns(ignore_patterns, config_path=ignore_config)
+    df_raw, dropped = filter_transactions_by_description(df_raw, patterns_all)
+    if dropped:
+        print(f"Filtered {dropped} transactions using ignore patterns.")
 
     df_prepared = prepare_dataframe(df_raw)
 

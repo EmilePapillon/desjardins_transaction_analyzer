@@ -3,6 +3,7 @@ import click
 
 from parsers import parse_statements, write_csv
 from parsers.desjardins import parse_dd_mm, parse_page_transactions
+from user_settings import collect_ignore_patterns, filter_transactions_by_description
 
 
 @click.command()
@@ -38,7 +39,20 @@ from parsers.desjardins import parse_dd_mm, parse_page_transactions
     is_flag=True,
     help="Print per-file parsing info.",
 )
-def main(input_dir, output_csv, patterns, bank, verbose):
+@click.option(
+    "--ignore-pattern",
+    "-x",
+    "ignore_patterns",
+    multiple=True,
+    help="Glob pattern(s) of descriptions to drop (applied after parsing).",
+)
+@click.option(
+    "--ignore-config",
+    default=None,
+    type=click.Path(dir_okay=False, exists=False),
+    help="Optional JSON config file with ignore settings (defaults to ~/.extracts_ignore.json).",
+)
+def main(input_dir, output_csv, patterns, bank, verbose, ignore_patterns, ignore_config):
     """
     Parse statement files with the available bank parsers and write a CSV extract.
     """
@@ -52,6 +66,11 @@ def main(input_dir, output_csv, patterns, bank, verbose):
     if df.empty:
         click.echo("No transactions found. Check the input files or parser selection.")
         return
+
+    patterns_all = collect_ignore_patterns(ignore_patterns, config_path=ignore_config)
+    df, dropped = filter_transactions_by_description(df, patterns_all)
+    if dropped:
+        click.echo(f"Filtered {dropped} transactions using ignore patterns.")
 
     write_csv(df, output_csv)
     click.echo(f"Extracted {len(df)} transactions.")

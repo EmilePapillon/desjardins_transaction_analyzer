@@ -60,6 +60,9 @@ pytest
 - To build a single-file app on macOS with PyInstaller:
   ```bash
   pip install pyinstaller
-  pyinstaller --onefile --add-data "resources:resources" launcher.py
+  pyinstaller --onefile \
+    --add-data "resources:resources" \
+    --add-data "templates:templates" \
+    launcher.py
   ```
   The packaged binary will be in `dist/launcher`. Build on each target OS you need (Mac builds for Mac, Windows builds for Windows).

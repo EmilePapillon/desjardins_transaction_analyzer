@@ -3,13 +3,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from main import extract_all_pdfs
+from parsers import parse_statements
 
 SUPPORT_DIR = Path(__file__).parent / "support"
 
 
 def test_extract_from_sample_statements(tmp_path):
-    df = extract_all_pdfs(str(SUPPORT_DIR))
+    df, unmatched = parse_statements(str(SUPPORT_DIR))
+    assert not unmatched
     assert not df.empty
 
     expected_cols = {

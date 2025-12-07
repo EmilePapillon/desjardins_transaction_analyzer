@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import pytest
 
-from main import parse_dd_mm, parse_page_transactions
+from parsers.desjardins import parse_dd_mm, parse_page_transactions
 
 
 class FakePage:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List
 
 import click
@@ -98,7 +99,54 @@ def format_rows_for_detail(rows: pd.DataFrame) -> List[Dict]:
     return subset.to_dict(orient="records")
 
 
-def wrap_html_with_detail(fig_html: str, title: str, chart_id: str, detail_id: str) -> str:
+def write_index_html(out_dir: str):
+    """Write an index page linking to all charts (no external template needed)."""
+    html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Spending Analysis</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f9fb; margin: 0; padding: 20px; color: #222; }
+    h1 { margin-top: 0; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .card { background: white; border: 1px solid #e3e7ed; border-radius: 8px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+    .card a { text-decoration: none; color: #006644; font-weight: 600; }
+    .card p { margin: 6px 0 0 0; color: #555; font-size: 14px; }
+    .footer { margin-top: 20px; color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Spending Analysis</h1>
+  <p>Open a chart below to explore the underlying transactions (click bars/points for details, sort columns in the detail tables).</p>
+  <div class="cards">
+    <div class="card">
+      <a href="monthly_spending.html">Monthly spending</a>
+      <p>Total spend per month.</p>
+    </div>
+    <div class="card">
+      <a href="daily_spending.html">Daily spending</a>
+      <p>Daily totals with rolling average.</p>
+    </div>
+    <div class="card">
+      <a href="amount_histogram.html">Amount distribution</a>
+      <p>Histogram of transaction amounts.</p>
+    </div>
+    <div class="card">
+      <a href="top_merchants.html">Top merchants</a>
+      <p>Spend by merchant (top 15).</p>
+    </div>
+  </div>
+  <div class="footer">Payments are excluded; matched reimbursements are removed from spend.</div>
+</body>
+</html>
+"""
+    out_path = Path(out_dir) / "index.html"
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+
+def wrap_html_with_detail(fig_html: str, title: str, chart_id: str, detail_id: str, back_link: str = None) -> str:
     """Embed a detail container and click handler alongside the Plotly chart HTML."""
     style = """
     <style>
@@ -173,7 +221,10 @@ def wrap_html_with_detail(fig_html: str, title: str, chart_id: str, detail_id: s
     }})();
     </script>
     """
-    return f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{title}</title>{style}</head><body>{fig_html}<div id='{detail_id}' class='detail-box'>Click a bar/point to see transactions.</div>{script}</body></html>"
+    back_html = ""
+    if back_link:
+        back_html = f"<p><a href='{back_link}'>&larr; Back to index</a></p>"
+    return f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>{title}</title>{style}</head><body>{back_html}{fig_html}<div id='{detail_id}' class='detail-box'>Click a bar/point to see transactions.</div>{script}</body></html>"
 
 
 def plot_monthly_spending(df: pd.DataFrame, out_dir: str):
@@ -201,7 +252,7 @@ def plot_monthly_spending(df: pd.DataFrame, out_dir: str):
     fig.update_traces(customdata=custom)
 
     fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", div_id="chart-monthly")
-    html = wrap_html_with_detail(fig_html, "Monthly Spending", "chart-monthly", "detail-monthly")
+    html = wrap_html_with_detail(fig_html, "Monthly Spending", "chart-monthly", "detail-monthly", back_link="index.html")
 
     out_path = os.path.join(out_dir, "monthly_spending.html")
     with open(out_path, "w", encoding="utf-8") as f:
@@ -240,7 +291,7 @@ def plot_daily_spending(df: pd.DataFrame, out_dir: str, window: int = 7):
         fig.data[1].hovertemplate = "Date: %{x}<br>Rolling mean: %{y:.2f}<extra></extra>"
 
     fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", div_id="chart-daily")
-    html = wrap_html_with_detail(fig_html, "Daily Spending", "chart-daily", "detail-daily")
+    html = wrap_html_with_detail(fig_html, "Daily Spending", "chart-daily", "detail-daily", back_link="index.html")
 
     out_path = os.path.join(out_dir, "daily_spending.html")
     with open(out_path, "w", encoding="utf-8") as f:
@@ -279,7 +330,7 @@ def plot_amount_histogram(df: pd.DataFrame, out_dir: str):
         fig.update_traces(customdata=custom, hovertemplate="Range: %{x}<br>Count: %{y}<extra></extra>")
 
     fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", div_id="chart-hist")
-    html = wrap_html_with_detail(fig_html, "Amount Distribution", "chart-hist", "detail-hist")
+    html = wrap_html_with_detail(fig_html, "Amount Distribution", "chart-hist", "detail-hist", back_link="index.html")
 
     out_path = os.path.join(out_dir, "amount_histogram.html")
     with open(out_path, "w", encoding="utf-8") as f:
@@ -311,7 +362,7 @@ def plot_top_merchants(df: pd.DataFrame, out_dir: str, top_n: int = 15):
     fig.update_traces(customdata=custom, hovertemplate="Merchant: %{y}<br>Spend: %{x:.2f}<extra></extra>")
 
     fig_html = fig.to_html(full_html=False, include_plotlyjs="cdn", div_id="chart-merchants")
-    html = wrap_html_with_detail(fig_html, "Top Merchants", "chart-merchants", "detail-merchants")
+    html = wrap_html_with_detail(fig_html, "Top Merchants", "chart-merchants", "detail-merchants", back_link="index.html")
 
     out_path = os.path.join(out_dir, "top_merchants.html")
     with open(out_path, "w", encoding="utf-8") as f:
@@ -368,6 +419,9 @@ def main(input_csv, output_dir, rolling_window):
 
     print("Generating top merchants chart...")
     plot_top_merchants(df_expenses, output_dir)
+
+    print("Writing index page...")
+    write_index_html(output_dir)
 
     print(f"Done. Open the HTML files in {output_dir} in your browser.")
 

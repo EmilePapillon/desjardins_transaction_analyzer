@@ -12,13 +12,47 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
+import importlib
 
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
+# Ensure PyInstaller bundles these modules
+try:
+    import main as extractor  # noqa: F401
+    import analyse as analyzer  # noqa: F401
+except Exception:
+    pass
+
 
 def run_cmd(args, cwd):
-    """Run a command and raise on failure."""
+    """
+    Run a command and raise on failure.
+    In PyInstaller-frozen mode, avoid spawning another instance of the launcher by running the
+    target scripts in-process via runpy.
+    """
+    if getattr(sys, "frozen", False):
+        # args like [sys.executable, script_path, ...]
+        script_path = Path(args[1])
+        module_name = script_path.stem
+        argv = args[2:]
+        old_cwd = os.getcwd()
+        old_argv = sys.argv
+        try:
+            os.chdir(cwd)
+            sys.argv = [f"{module_name}.py"] + argv
+            mod = importlib.import_module(module_name)
+            cmd = getattr(mod, "main", None)
+            if cmd is None:
+                raise RuntimeError(f"Module {module_name} has no main")
+            if hasattr(cmd, "main"):
+                cmd.main(args=argv, standalone_mode=False)
+            else:
+                cmd(args=argv, standalone_mode=False)
+        finally:
+            sys.argv = old_argv
+            os.chdir(old_cwd)
+        return None
     result = subprocess.run(args, cwd=cwd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"{' '.join(args)} failed:\n{result.stderr or result.stdout}")
@@ -37,13 +71,26 @@ def choose_output_dir():
 
 
 def on_run(status_label, root):
+    frozen = getattr(sys, "frozen", False)
+    messagebox.showinfo(
+        "Step 1",
+        "Pick the ZIP file you downloaded from Desjardins (Last 12 months).",
+    )
     zip_path = choose_zip()
     if not zip_path:
         return
 
-    out_dir = choose_output_dir()
-    if not out_dir:
-        return
+    if frozen:
+        out_dir = Path(tempfile.mkdtemp(prefix="desj-analysis-"))
+    else:
+        messagebox.showinfo(
+            "Step 2",
+            "Choose where to save the results (transactions.csv and charts).",
+        )
+        chosen = choose_output_dir()
+        if not chosen:
+            return
+        out_dir = Path(chosen)
 
     try:
         status_label.config(text="Unzipping statements...")
@@ -70,6 +117,19 @@ def on_run(status_label, root):
                 [sys.executable, str(analyse_py), "-i", str(csv_path), "-o", str(out_dir)],
                 cwd=str(repo_root),
             )
+
+        # Open index.html
+        index_path = Path(out_dir) / "index.html"
+        if index_path.exists():
+            try:
+                if sys.platform == "darwin":
+                    subprocess.run(["open", str(index_path)])
+                elif sys.platform.startswith("win"):
+                    os.startfile(index_path)  # type: ignore[attr-defined]
+                else:
+                    subprocess.run(["xdg-open", str(index_path)])
+            except Exception:
+                pass
 
         status_label.config(text="Done.")
         messagebox.showinfo("Finished", f"Analysis complete.\nOutputs in:\n{out_dir}")

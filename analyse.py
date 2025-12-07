@@ -7,6 +7,7 @@ import pandas as pd
 
 from parsers import parse_statements, write_csv
 from plots import get_plot_pages
+from plots.theme import INDEX_PAGE_STYLES
 
 
 def ensure_output_dir(path: str):
@@ -95,13 +96,7 @@ def write_index_html(out_dir: str, pages: List):
   <meta charset=\"UTF-8\">
   <title>Spending Analysis</title>
   <style>
-    body {{ font-family: Arial, sans-serif; background: #f7f9fb; margin: 0; padding: 20px; color: #222; }}
-    h1 {{ margin-top: 0; }}
-    .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }}
-    .card {{ background: white; border: 1px solid #e3e7ed; border-radius: 8px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }}
-    .card a {{ text-decoration: none; color: #006644; font-weight: 600; }}
-    .card p {{ margin: 6px 0 0 0; color: #555; font-size: 14px; }}
-    .footer {{ margin-top: 20px; color: #666; font-size: 13px; }}
+{INDEX_PAGE_STYLES}
   </style>
 </head>
 <body>

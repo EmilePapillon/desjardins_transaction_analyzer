@@ -14,7 +14,11 @@ class TopMerchantsPage(PlotPage):
 
     def generate(self, df: pd.DataFrame, out_dir: str) -> str:
         by_merchant = (
-            df.groupby("merchant")["amount"].sum().sort_values(ascending=False).head(self.top_n).reset_index()
+            df.groupby("merchant", observed=False)["amount"]
+            .sum()
+            .sort_values(ascending=False)
+            .head(self.top_n)
+            .reset_index()
         )
 
         custom = build_customdata(df, by_merchant["merchant"], lambda frame, m: frame[frame["merchant"] == m])

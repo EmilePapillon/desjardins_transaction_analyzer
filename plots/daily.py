@@ -14,7 +14,7 @@ class DailySpendingPage(PlotPage):
 
     def generate(self, df: pd.DataFrame, out_dir: str) -> str:
         daily = (
-            df.groupby(df["transaction_date"].dt.date)["amount"]
+            df.groupby(df["transaction_date"].dt.date, observed=False)["amount"]
             .sum()
             .reset_index()
             .rename(columns={"transaction_date": "date"})

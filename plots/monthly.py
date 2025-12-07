@@ -11,7 +11,10 @@ class MonthlySpendingPage(PlotPage):
 
     def generate(self, df: pd.DataFrame, out_dir: str) -> str:
         monthly = (
-            df.groupby("year_month")["amount"].agg(total="sum", count="size").reset_index().sort_values("year_month")
+            df.groupby("year_month", observed=False)["amount"]
+            .agg(total="sum", count="size")
+            .reset_index()
+            .sort_values("year_month")
         )
         custom = build_customdata(df, monthly["year_month"], lambda frame, ym: frame[frame["year_month"] == ym])
 

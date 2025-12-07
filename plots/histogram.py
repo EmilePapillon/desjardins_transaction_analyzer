@@ -18,7 +18,12 @@ class AmountHistogramPage(PlotPage):
             custom = []
         else:
             positive["bin"] = pd.cut(positive["amount"], bins=40, include_lowest=True)
-            bin_df = positive.groupby("bin")["amount"].agg(count="size").reset_index().sort_values("bin")
+            bin_df = (
+                positive.groupby("bin", observed=False)["amount"]
+                .agg(count="size")
+                .reset_index()
+                .sort_values("bin")
+            )
             bin_df["bin_label"] = bin_df["bin"].astype(str)
             custom = build_customdata(positive, bin_df["bin"], lambda frame, interval: frame[frame["bin"] == interval])
 

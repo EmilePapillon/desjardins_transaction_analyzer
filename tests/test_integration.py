@@ -33,6 +33,11 @@ def test_extract_from_sample_statements(tmp_path):
 
     assert set(df["is_payment"].dropna().unique()).issubset({True, False})
 
+    # Ensure multiple parsers can coexist (e.g., desjardins + td samples).
+    parsers_used = set(df["parser"].dropna().unique())
+    assert "desjardins" in parsers_used
+    assert "td" in parsers_used
+
     out_csv = tmp_path / "out.csv"
     df.to_csv(out_csv, index=False)
     df_back = pd.read_csv(out_csv)

@@ -67,8 +67,34 @@ def parse_statements(input_dir: str, patterns: Optional[List[str]] = None, bank:
         if verbose:
             print(f"Parsing {path} with {parser.name}...")
         df = parser.parse_file(path, sniff=sniff)
+        warn_duplicate_transactions(df, path)
         df["parser"] = parser.name
         dfs.append(df)
 
     combined = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
     return combined, unmatched
+
+
+def warn_duplicate_transactions(df: pd.DataFrame, source: str):
+    """
+    Emit a warning if the DataFrame contains duplicate transactions by date/description/amount.
+    """
+    required = {"transaction_date", "description", "amount"}
+    if df.empty or not required.issubset(df.columns):
+        return
+
+    amounts = pd.to_numeric(df["amount"], errors="coerce").round(2)
+    candidates = df.assign(_amount_norm=amounts)
+    dups = candidates[candidates.duplicated(subset=["transaction_date", "description", "_amount_norm"], keep=False)]
+    if dups.empty:
+        return
+
+    keys = (
+        dups.groupby(["transaction_date", "description", "_amount_norm"])
+        .size()
+        .reset_index()[["transaction_date", "description", "_amount_norm"]]
+    )
+    print(f"Warning: found duplicate transactions in {source}:")
+    for _, row in keys.iterrows():
+        amt = row["_amount_norm"]
+        print(f"  - {row['transaction_date']} | {row['description']} | {amt}")

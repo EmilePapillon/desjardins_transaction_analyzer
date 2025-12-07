@@ -71,3 +71,45 @@ def test_forced_parser_must_accept(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="Forced parser .* cannot parse file"):
         driver.parse_statements(str(tmp_path), bank="forced")
+
+
+class DuplicateParser(BankStatementParser):
+    name = "dup"
+
+    def can_parse(self, path: str, sniff: FileSniff | None = None) -> bool:
+        return True
+
+    def parse_file(self, path: str, sniff: FileSniff | None = None) -> pd.DataFrame:
+        return pd.DataFrame(
+            [
+                {
+                    "file": path,
+                    "transaction_date": "2025-01-01",
+                    "description": "XFER",
+                    "amount": 10.0,
+                    "is_payment": False,
+                },
+                {
+                    "file": path,
+                    "transaction_date": "2025-01-01",
+                    "description": "XFER",
+                    "amount": 10.0,
+                    "is_payment": False,
+                },
+            ]
+        )
+
+
+def test_duplicate_warning(monkeypatch, capsys, tmp_path):
+    f = tmp_path / "dup.pdf"
+    f.write_text("dummy")
+
+    monkeypatch.setattr(driver, "get_parsers", lambda: [DuplicateParser()])
+
+    df, unmatched = driver.parse_statements(str(tmp_path))
+    assert unmatched == []
+    assert len(df) == 2
+
+    captured = capsys.readouterr()
+    assert "duplicate transactions" in captured.out
+    assert "2025-01-01" in captured.out

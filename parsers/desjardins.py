@@ -109,9 +109,6 @@ class DesjardinsParser(BankStatementParser):
                             {
                                 "file": filename,
                                 "transaction_date": tx_date.strftime("%Y-%m-%d"),
-                                "posted_date": posted_date.strftime("%Y-%m-%d"),
-                                "transaction_date_raw": dt_raw,
-                                "posted_date_raw": dp_raw,
                                 "description": description,
                                 "description_raw": description_raw,
                                 "amount": amount,

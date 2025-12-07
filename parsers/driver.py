@@ -67,6 +67,7 @@ def parse_statements(input_dir: str, patterns: Optional[List[str]] = None, bank:
         if verbose:
             print(f"Parsing {path} with {parser.name}...")
         df = parser.parse_file(path, sniff=sniff)
+        df["parser"] = parser.name
         dfs.append(df)
 
     combined = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()

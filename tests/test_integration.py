@@ -16,21 +16,16 @@ def test_extract_from_sample_statements(tmp_path):
     expected_cols = {
         "file",
         "transaction_date",
-        "posted_date",
-        "transaction_date_raw",
-        "posted_date_raw",
         "description",
         "description_raw",
         "amount",
         "is_payment",
+        "parser",
     }
     assert expected_cols.issubset(df.columns)
 
     tx_dates = pd.to_datetime(df["transaction_date"], errors="coerce")
-    posted_dates = pd.to_datetime(df["posted_date"], errors="coerce")
     assert tx_dates.notna().all()
-    assert posted_dates.notna().all()
-    assert (posted_dates >= tx_dates).all()
 
     amounts = pd.to_numeric(df["amount"], errors="coerce")
     assert amounts.notna().all()

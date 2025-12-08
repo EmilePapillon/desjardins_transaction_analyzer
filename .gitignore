@@ -33,7 +33,7 @@ html/
 .extracts_ignore.json
 
 # Large inputs
-releves/*.pdf
+releves/**/*.pdf
 
 # Editor swap files
 *.swp

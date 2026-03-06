@@ -7,7 +7,7 @@ import pandas as pd
 
 from parsers import parse_statements, write_csv
 from plots import get_plot_pages
-from plots.theme import INDEX_PAGE_STYLES
+from ui.theme import INDEX_PAGE_STYLES
 from user_settings import collect_ignore_patterns, filter_transactions_by_description
 
 

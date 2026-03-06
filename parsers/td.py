@@ -80,6 +80,103 @@ def parse_date_token(token: str, start: Tuple[int, int, int], end: Tuple[int, in
         return None
 
 
+AMOUNT_RE = re.compile(r"^-?\d[\d,]*\.\d{2}$")
+
+
+def find_deposit_threshold(words: List[Dict]) -> Optional[float]:
+    """
+    Return the x0 position of the 'Deposits' column header, used to distinguish
+    deposit amounts from withdrawal amounts by horizontal position.
+    """
+    for w in words:
+        if w["text"].upper() in ("DEPOSITS", "DEPOSIT"):
+            return w["x0"]
+    return None
+
+
+def group_words_by_row(words: List[Dict], y_tolerance: float = 3.0) -> List[List[Dict]]:
+    """
+    Group extracted words into rows by vertical (top) coordinate within y_tolerance.
+    Returns rows sorted top-to-bottom, each row sorted left-to-right.
+    """
+    buckets: Dict[int, List[Dict]] = {}
+    for w in words:
+        key = round(w["top"] / y_tolerance)
+        buckets.setdefault(key, []).append(w)
+    return [
+        sorted(row, key=lambda w: w["x0"])
+        for row in sorted(buckets.values(), key=lambda row: row[0]["top"])
+    ]
+
+
+def parse_words_row(
+    row_words: List[Dict],
+    start: Tuple[int, int, int],
+    end: Tuple[int, int, int],
+    deposit_threshold: Optional[float],
+) -> Optional[Dict]:
+    """
+    Parse a row of word dicts (from pdfplumber extract_words) into a transaction
+    dict, using x-coordinates to distinguish withdrawals from deposits.
+    Returns None if the row is not a transaction.
+    """
+    date_word = None
+    date_idx = None
+    for i, w in enumerate(row_words):
+        if re.match(r"^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\d{1,2}$", w["text"].upper()):
+            date_word = w
+            date_idx = i
+            break
+
+    if date_word is None:
+        return None
+
+    joined = " ".join(w["text"] for w in row_words).upper()
+    if joined.startswith("STARTING") or joined.startswith("CLOSING"):
+        return None
+
+    before_date = row_words[:date_idx]
+    desc_words = []
+    amount_words = []
+    for w in before_date:
+        if AMOUNT_RE.match(w["text"]):
+            amount_words.append(w)
+        else:
+            desc_words.append(w)
+
+    if not amount_words:
+        return None
+
+    description = " ".join(w["text"] for w in desc_words).strip()
+    if not description:
+        return None
+
+    tx_date = parse_date_token(date_word["text"], start, end)
+    if tx_date is None:
+        return None
+
+    amount_value: Optional[float] = None
+    for aw in amount_words:
+        val = normalize_amount(aw["text"])
+        if val is None:
+            continue
+        if deposit_threshold is not None and aw["x0"] >= deposit_threshold:
+            amount_value = -val
+        else:
+            amount_value = val
+
+    if amount_value is None:
+        return None
+
+    return {
+        "transaction_date": tx_date.strftime("%Y-%m-%d"),
+        "description": description,
+        "description_raw": description,
+        "amount": amount_value,
+        "is_payment": "PAYMENT" in description.upper(),
+    }
+
+
 def split_amounts(tokens: List[str]) -> Tuple[List[str], List[str]]:
     """
     Split tokens before the date into description tokens and amount tokens.
@@ -206,9 +303,10 @@ class TDParser(BankStatementParser):
 
                 rows: List[Dict] = []
                 for page in pdf.pages:
-                    text = page.extract_text() or ""
-                    for line in text.splitlines():
-                        tx = parse_transaction_line(line, start, end)
+                    words = page.extract_words()
+                    deposit_threshold = find_deposit_threshold(words)
+                    for row_words in group_words_by_row(words):
+                        tx = parse_words_row(row_words, start, end, deposit_threshold)
                         if tx:
                             tx["file"] = filename
                             rows.append(tx)

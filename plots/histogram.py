@@ -2,7 +2,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from .base import PlotPage, build_customdata
+from ui.detail import build_customdata
+
+from .base import PlotPage
 
 
 class AmountHistogramPage(PlotPage):

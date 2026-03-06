@@ -15,12 +15,12 @@ def test_parse_date_range_and_year_selection():
 
 def test_parse_transaction_withdrawal_line():
     start_end = ((2025, 10, 31), (2025, 11, 28))
-    line = "SENDE-TFR***mYS 133.60 NOV03 293,851.47"
+    line = "SENDE-TFR***ABC 250.00 NOV03 9,750.00"
     tx = parse_transaction_line(line, *start_end)
     assert tx
     assert tx["transaction_date"] == "2025-11-03"
-    assert tx["amount"] == 133.60
-    assert tx["description"] == "SENDE-TFR***mYS"
+    assert tx["amount"] == 250.00
+    assert tx["description"] == "SENDE-TFR***ABC"
 
 
 def test_parse_transaction_deposit_line_sets_negative_amount():
@@ -35,7 +35,7 @@ def test_parse_transaction_deposit_line_sets_negative_amount():
 
 def test_non_transaction_lines_are_ignored():
     start_end = ((2025, 10, 31), (2025, 11, 28))
-    line = "STARTINGBALANCE OCT31 293,985.07"
+    line = "STARTINGBALANCE OCT31 10,000.00"
     assert parse_transaction_line(line, *start_end) is None
 
 
@@ -48,13 +48,13 @@ def test_parse_words_row_withdrawal():
     start_end = ((2025, 10, 31), (2025, 11, 28))
     row = [
         _make_word("SENDE-TFR", 69),
-        _make_word("133.60", 279),   # withdrawal column
+        _make_word("250.00", 279),   # withdrawal column
         _make_word("NOV03", 416),
-        _make_word("293,851.47", 491),
+        _make_word("9,750.00", 491),
     ]
     tx = parse_words_row(row, *start_end, deposit_threshold=339.0)
     assert tx is not None
-    assert tx["amount"] == 133.60
+    assert tx["amount"] == 250.00
     assert tx["transaction_date"] == "2025-11-03"
     assert tx["description"] == "SENDE-TFR"
 

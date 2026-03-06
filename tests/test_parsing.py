@@ -17,17 +17,17 @@ class FakePage:
 def test_parse_page_transactions_basic_and_percent_stripping():
     sample = "\n".join(
         [
-            "01 06 02 06 ZEHRS #529 PARKWAY WINDSOR ON 3,00 % 90,45",
-            "02 06 03 06 THE HOME DEPOT #7184 WINDSOR ON 1,50 % 57,63",
+            "01 06 02 06 SAMPLE GROCERY STORE SAMPLETOWN ON 3,00 % 45,67",
+            "02 06 03 06 FICTIONAL HARDWARE STORE 1,50 % 78,90",
         ]
     )
     rows = parse_page_transactions(FakePage(sample))
     assert len(rows) == 2
     assert rows[0]["transaction_date_raw"] == "01 06"
     assert rows[0]["posted_date_raw"] == "02 06"
-    assert rows[0]["amount_raw"] == "90,45"
-    assert rows[0]["description_raw"].startswith("ZEHRS #529")
-    assert rows[0]["description"] == "ZEHRS #529 PARKWAY WINDSOR ON"
+    assert rows[0]["amount_raw"] == "45,67"
+    assert rows[0]["description_raw"].startswith("SAMPLE GROCERY")
+    assert rows[0]["description"] == "SAMPLE GROCERY STORE SAMPLETOWN ON"
 
 
 def test_parse_page_transactions_credit_and_spacing():

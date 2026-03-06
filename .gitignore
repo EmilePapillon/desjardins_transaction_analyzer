@@ -32,8 +32,10 @@ html/
 .extracts_ignore.yml
 .extracts_ignore.json
 
-# Large inputs
+# Large inputs / statement PDFs (may contain personal data — never commit)
 releves/**/*.pdf
+releves_bkp/**/*.pdf
+tests/support/*.pdf
 
 # Editor swap files
 *.swp

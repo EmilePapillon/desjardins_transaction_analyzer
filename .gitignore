@@ -37,6 +37,9 @@ releves/**/*.pdf
 releves_bkp/**/*.pdf
 tests/support/*.pdf
 
+# UI screenshots (may show account details)
+resources/*.png
+
 # Editor swap files
 *.swp
 *.swo

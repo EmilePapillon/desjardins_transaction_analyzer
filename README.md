@@ -3,13 +3,10 @@
 This repo extracts transactions from Desjardins credit-card PDF statements and builds interactive spending visuals.
 
 ## Download last 12 months of statements
-1) Log in to AccèsD. On the right rail, click **Statements and documents**.  
-2) In the dropdown, choose **Credit cards and prepaid cards** under **Monthly statements**.  
-   ![Statements menu](resources/statements_and_documents.png)
-3) On the statements page, select your card and choose **Last 12 months**.  
-   ![Select card and period](resources/last_12_months.png)
-4) Check all statements and click **Download ZIP file**. Unzip the PDFs into `releves/`.  
-   ![Download ZIP](resources/download.png)
+1) Log in to AccèsD. On the right rail, click **Statements and documents**.
+2) In the dropdown, choose **Credit cards and prepaid cards** under **Monthly statements**.
+3) On the statements page, select your card and choose **Last 12 months**.
+4) Check all statements and click **Download ZIP file**. Unzip the PDFs into `releves/`.
 
 ## Setup (macOS)
 1) Ensure Python 3.10+ is installed: `python3 --version` (install via Homebrew if needed: `brew install python`).
